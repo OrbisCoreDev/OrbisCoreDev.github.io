@@ -919,15 +919,19 @@
                                 (function () {
                                     try {
                                         var cachedHeroJson = localStorage.getItem('dodo-work-hero-images-cache');
-                                        var initialImg = "./assets/dodo_hero.png";
+                                        var heroImages = [];
                                         if (cachedHeroJson) {
                                             var cachedArr = JSON.parse(cachedHeroJson);
                                             if (cachedArr && cachedArr.length > 0) {
-                                                initialImg = cachedArr[0];
+                                                heroImages = cachedArr.filter(function (imgUrl) {
+                                                    return imgUrl && imgUrl !== './assets/dodo_hero.png';
+                                                });
                                             }
                                         }
                                         var trackEl = document.getElementById('work-hero-slider-track');
-                                        var slideHtml = '<div class="hero-slide" style="width:100%; height:100%; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden;"><img src="' + initialImg + '" style="width:100%; height:100%; object-fit:cover; display:block; vertical-align:middle;"></div>';
+                                        var slideHtml = heroImages.length
+                                            ? '<div class="hero-slide" style="width:100%; height:100%; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden;"><img src="' + heroImages[0] + '" style="width:100%; height:100%; object-fit:cover; display:block; vertical-align:middle;"></div>'
+                                            : '<div class="hero-slide hero-intro-slide"><iframe class="work-hero-intro" src="./assets/orbis-intro.html" title="ORBiS CORE 인트로 애니메이션" tabindex="-1"></iframe></div>';
                                         trackEl.innerHTML = slideHtml;
                                     } catch (e) {
                                         console.error(e);
@@ -947,9 +951,9 @@
 
                         <!-- 텍스트 내용 -->
                         <div class="container" style="position: relative; z-index: 3; text-align: center;">
-                            <div class="hero-text-content" style="width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 0;">
+                            <div class="hero-text-content" style="width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 0; transform: translateY(-300px);">
                                 <span class="hero-badge" style="background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); color: #fff; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 2px 10px rgba(0,0,0,0.1);"><i class="fa-solid fa-briefcase"></i> Work & Projects</span>
-                                <h1 class="hero-title" style="color: #ffffff; text-shadow: 0 2px 10px rgba(0,0,0,0.5);">ORBISCORE 워크스페이스</h1>
+                                <h1 class="hero-title" style="color: #ffffff; text-shadow: 0 2px 10px rgba(0,0,0,0.5);">ORBISCORE</h1>
                                 <p class="hero-desc" style="color: rgba(255,255,255,0.9); text-shadow: 0 1px 5px rgba(0,0,0,0.5);">일정을 기획하고 구성원들과 공유하며 목표를 달성하세요. 간트 차트와 칸반 보드를 활용하여 팀의 생산성을 극대화합니다.</p>
                             </div>
                         </div>

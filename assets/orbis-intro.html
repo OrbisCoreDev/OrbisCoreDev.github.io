@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ORBiS CORE</title>
+    <style>
+        :root {
+            --navy-0: #030612;
+            --navy-1: #071b35;
+            --navy-2: #0a2a4b;
+            --orbis: #2d9cdb;
+            --core: #9cdbd9;
+            --text: #eff9ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--navy-0);
+            font-family: "Outfit", "Noto Sans KR", "Segoe UI", sans-serif;
+        }
+
+        .stage, .deco, .vignette, .intro-layer, .grain {
+            position: absolute;
+            inset: 0;
+        }
+
+        #warp {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .deco {
+            pointer-events: none;
+            opacity: 0.58;
+            transform: rotateX(26deg) translateY(-4%) scale(1.08);
+        }
+
+        .deco::before, .deco::after {
+            content: "";
+            position: absolute;
+            inset: 9% 7%;
+            border: 1px solid rgba(156, 219, 217, 0.28);
+            clip-path: polygon(50% 0%, 93% 24%, 93% 76%, 50% 100%, 7% 76%, 7% 24%);
+            filter: drop-shadow(0 0 16px rgba(45, 156, 219, 0.2));
+        }
+
+        .deco::after {
+            inset: 20% 17%;
+            border-color: rgba(45, 156, 219, 0.32);
+        }
+
+        .intro-layer {
+            z-index: 2;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+        }
+
+        .logo-wrap {
+            position: relative;
+            width: min(78vw, 760px);
+            aspect-ratio: 16 / 9;
+            display: grid;
+            place-items: center;
+        }
+
+        .orbital, .orbital::before, .orbital::after {
+            position: absolute;
+            content: "";
+            border: 1px solid rgba(45, 156, 219, 0.42);
+            border-radius: 50%;
+        }
+
+        .orbital {
+            width: min(48vw, 380px);
+            aspect-ratio: 1;
+            box-shadow: 0 0 28px rgba(45, 156, 219, 0.26);
+            animation: orbit-sweep 2.4s ease-out both;
+        }
+
+        .orbital::before {
+            inset: 16%;
+            border-color: rgba(156, 219, 217, 0.42);
+            transform: rotate(16deg);
+        }
+
+        .orbital::after {
+            inset: 30%;
+            border-color: rgba(255, 255, 255, 0.28);
+            transform: rotate(-14deg);
+        }
+
+        .wordmark {
+            padding-left: 0.24em;
+            color: var(--text);
+            font-size: clamp(20px, 4.8vw, 58px);
+            font-weight: 800;
+            letter-spacing: 0.24em;
+            text-align: center;
+            text-transform: uppercase;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(9px) scale(0.97);
+            filter: blur(8px);
+            text-shadow: 0 0 36px rgba(45, 156, 219, 0.36);
+            animation: logo-in 0.8s cubic-bezier(0.2, 0.86, 0.22, 1) 0.45s forwards;
+        }
+
+        .wordmark .orbis { color: var(--orbis); }
+        .wordmark .core { color: var(--core); }
+
+        .subtitle {
+            margin-top: 12px;
+            color: rgba(239, 249, 255, 0.72);
+            font-size: clamp(9px, 1.35vw, 14px);
+            letter-spacing: 0.31em;
+            padding-left: 0.31em;
+            text-align: center;
+            text-transform: uppercase;
+            opacity: 0;
+            animation: subtitle-in 0.52s ease 0.72s forwards;
+        }
+
+        .vignette {
+            z-index: 3;
+            box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.58);
+            pointer-events: none;
+        }
+
+        .grain {
+            z-index: 4;
+            opacity: 0.12;
+            pointer-events: none;
+            mix-blend-mode: soft-light;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+            animation: grain-move 0.24s steps(2) infinite;
+        }
+
+        @keyframes orbit-sweep {
+            from { opacity: 0; transform: scale(0.65) rotate(-24deg); }
+            60% { opacity: 0.92; transform: scale(1.02) rotate(8deg); }
+            to { opacity: 0.82; transform: scale(1) rotate(16deg); }
+        }
+
+        @keyframes logo-in {
+            from { opacity: 0; transform: translateY(9px) scale(0.97); filter: blur(8px); }
+            to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+
+        @keyframes subtitle-in {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes grain-move {
+            0% { transform: translate(0, 0); }
+            30% { transform: translate(-1.5%, 1.2%); }
+            60% { transform: translate(1.1%, -0.8%); }
+            100% { transform: translate(0, 0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .orbital, .wordmark, .subtitle, .grain { animation: none; }
+            .wordmark, .subtitle { opacity: 1; filter: none; transform: none; }
+        }
+    </style>
+</head>
+<body>
+    <main class="stage" aria-label="ORBiS CORE introduction">
+        <canvas id="warp" aria-hidden="true"></canvas>
+        <div class="deco" aria-hidden="true"></div>
+        <section class="intro-layer">
+            <div class="logo-wrap">
+                <div class="orbital" aria-hidden="true"></div>
+                <div>
+                    <div class="wordmark"><span class="orbis">ORBIS</span> <span class="core">CORE</span></div>
+                    <div class="subtitle">Workspace</div>
+                </div>
+            </div>
+        </section>
+        <div class="vignette" aria-hidden="true"></div>
+        <div class="grain" aria-hidden="true"></div>
+    </main>
+    <script>
+        (() => {
+            const canvas = document.getElementById('warp');
+            const ctx = canvas.getContext('2d');
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const stars = [];
+            let width = 0;
+            let height = 0;
+            let dpr = 1;
+            let cx = 0;
+            let cy = 0;
+            let fov = 0;
+            let depth = 0;
+            let raf = 0;
+
+            const makeStar = () => ({
+                x: (Math.random() - 0.5) * width * 2,
+                y: (Math.random() - 0.5) * height * 2,
+                z: Math.random() * depth + 4,
+                pz: depth,
+                size: Math.random() * 1.2 + 0.25,
+                hue: 185 + Math.random() * 35
+            });
+
+            const resetStar = (star) => {
+                star.x = (Math.random() - 0.5) * width * 2;
+                star.y = (Math.random() - 0.5) * height * 2;
+                star.z = depth;
+                star.pz = depth;
+            };
+
+            const resize = () => {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = Math.floor(width * dpr);
+                canvas.height = Math.floor(height * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                cx = width / 2;
+                cy = height / 2;
+                fov = Math.min(width, height) * 0.92;
+                depth = Math.max(width, height) * 1.8;
+                stars.length = 0;
+                const count = width < 768 ? 120 : 220;
+                for (let i = 0; i < count; i += 1) stars.push(makeStar());
+            };
+
+            const drawBackground = () => {
+                const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, '#030612');
+                gradient.addColorStop(0.55, '#071b35');
+                gradient.addColorStop(1, '#0a2a4b');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, width, height);
+                const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.6);
+                glow.addColorStop(0, 'rgba(45,156,219,0.18)');
+                glow.addColorStop(0.45, 'rgba(156,219,217,0.025)');
+                glow.addColorStop(1, 'rgba(0,0,0,0.6)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(0, 0, width, height);
+            };
+
+            const frame = () => {
+                drawBackground();
+                const speed = reducedMotion ? 0 : 10;
+                stars.forEach((star) => {
+                    star.pz = star.z;
+                    star.z -= speed;
+                    if (star.z <= 1) {
+                        resetStar(star);
+                        return;
+                    }
+                    const sx = (star.x / star.z) * fov + cx;
+                    const sy = (star.y / star.z) * fov + cy;
+                    const px = (star.x / star.pz) * fov + cx;
+                    const py = (star.y / star.pz) * fov + cy;
+                    if (sx < -60 || sx > width + 60 || sy < -60 || sy > height + 60) {
+                        resetStar(star);
+                        return;
+                    }
+                    const alpha = Math.max(0.12, 1 - star.z / depth);
+                    ctx.beginPath();
+                    ctx.moveTo(px, py);
+                    ctx.lineTo(sx, sy);
+                    ctx.strokeStyle = `hsla(${star.hue},100%,74%,${Math.min(0.9, alpha * 1.15)})`;
+                    ctx.lineWidth = Math.max(0.55, star.size * (0.9 + alpha * 1.4));
+                    ctx.stroke();
+                });
+                if (!reducedMotion) raf = requestAnimationFrame(frame);
+            };
+
+            resize();
+            frame();
+            window.addEventListener('resize', resize);
+            window.addEventListener('beforeunload', () => cancelAnimationFrame(raf));
+        })();
+    </script>
+</body>
+</html>

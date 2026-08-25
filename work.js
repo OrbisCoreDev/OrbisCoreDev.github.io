@@ -3565,14 +3565,24 @@ const workHeroSliderFileInput = document.getElementById('work-hero-slider-file-i
 let workHeroImages = [];
 let workHeroSliderIndex = 0;
 let workHeroSliderInterval = null;
+const defaultHeroImage = './assets/dodo_hero.png';
+
+function normalizeWorkHeroImages(images) {
+    if (!Array.isArray(images)) return [];
+    return images.filter(imgUrl => imgUrl && imgUrl !== defaultHeroImage);
+}
+
+function getWorkHeroIntroSlide() {
+    return '<div class="hero-slide hero-intro-slide"><iframe class="work-hero-intro" src="./assets/orbis-intro.html" title="ORBiS CORE 인트로 애니메이션" tabindex="-1"></iframe></div>';
+}
+
+function setWorkHeroControlsVisible(visible) {
+    if (workHeroPrevBtn) workHeroPrevBtn.style.display = visible ? '' : 'none';
+    if (workHeroNextBtn) workHeroNextBtn.style.display = visible ? '' : 'none';
+}
 
 db.collection('workSiteSettings').doc('heroImages').onSnapshot(doc => {
-    if (doc.exists) {
-        workHeroImages = doc.data().images || [];
-    }
-    if (!workHeroImages || workHeroImages.length === 0) {
-        workHeroImages = ['./assets/dodo_hero.png'];
-    }
+    workHeroImages = doc.exists ? normalizeWorkHeroImages(doc.data().images) : [];
     localStorage.setItem('dodo-work-hero-images-cache', JSON.stringify(workHeroImages));
     renderWorkHeroSlider();
     if (workHeroManagerModal && !workHeroManagerModal.classList.contains('hidden')) {
@@ -3582,8 +3592,19 @@ db.collection('workSiteSettings').doc('heroImages').onSnapshot(doc => {
 
 function renderWorkHeroSlider() {
     if (!workHeroSliderTrack) return;
+    if (workHeroSliderInterval) clearInterval(workHeroSliderInterval);
     workHeroSliderTrack.innerHTML = '';
     if (workHeroSliderDots) workHeroSliderDots.innerHTML = '';
+
+    if (workHeroImages.length === 0) {
+        workHeroSliderTrack.innerHTML = getWorkHeroIntroSlide();
+        workHeroSliderIndex = 0;
+        workHeroSliderTrack.style.transform = 'translateX(0)';
+        setWorkHeroControlsVisible(false);
+        return;
+    }
+
+    setWorkHeroControlsVisible(workHeroImages.length > 1);
 
     workHeroImages.forEach((imgUrl, idx) => {
         const slide = document.createElement('div');
@@ -3630,6 +3651,7 @@ function updateWorkHeroSliderPosition() {
 }
 
 function goWorkHeroSlide(index) {
+    if (workHeroImages.length < 2) return;
     workHeroSliderIndex = index;
     if (workHeroSliderIndex >= workHeroImages.length) workHeroSliderIndex = 0;
     if (workHeroSliderIndex < 0) workHeroSliderIndex = workHeroImages.length - 1;
@@ -3642,6 +3664,7 @@ if (workHeroNextBtn) workHeroNextBtn.addEventListener('click', () => goWorkHeroS
 
 function startWorkHeroAutoSlide() {
     if (workHeroSliderInterval) clearInterval(workHeroSliderInterval);
+    if (workHeroImages.length < 2) return;
     workHeroSliderInterval = setInterval(() => {
         goWorkHeroSlide(workHeroSliderIndex + 1);
     }, 5000);
@@ -3664,14 +3687,13 @@ function renderWorkHeroManager() {
     if (!workHeroImagesGrid) return;
     workHeroImagesGrid.innerHTML = '';
 
-    // 등록된 이미지가 없거나 기본 이미지 한 장만 있으면 '없음' 표시
-    if (workHeroImages.length === 0 || (workHeroImages.length === 1 && workHeroImages[0] === "./assets/dodo_hero.png")) {
+    // 등록된 이미지가 없으면 인트로 애니메이션이 기본 배경으로 표시됨
+    if (workHeroImages.length === 0) {
         workHeroImagesGrid.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 1.5rem; color:var(--text-muted); font-size:0.85rem;">등록된 배경 사진이 없습니다.</p>';
         return;
     }
 
     workHeroImages.forEach((imgUrl, idx) => {
-        if (imgUrl === "./assets/dodo_hero.png") return;
 
         const wrapper = document.createElement('div');
         wrapper.style.position = 'relative';
@@ -3707,12 +3729,11 @@ function renderWorkHeroManager() {
             if (confirm("이 배경 사진을 삭제하시겠습니까?")) {
                 const newImages = [...workHeroImages];
                 newImages.splice(idx, 1);
-                const finalImages = newImages.length === 0 ? ['./assets/dodo_hero.png'] : newImages;
                 db.collection('workSiteSettings').doc('heroImages').set({
-                    images: finalImages,
+                    images: newImages,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }).then(() => {
-                    if (workHeroSliderIndex >= finalImages.length) {
+                    if (workHeroSliderIndex >= newImages.length) {
                         workHeroSliderIndex = 0;
                     }
                 });
@@ -3766,12 +3787,7 @@ if (workHeroSliderFileInput) {
 
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
 
-                let newImages = [];
-                if (workHeroImages.length === 1 && workHeroImages[0] === "./assets/dodo_hero.png") {
-                    newImages = [compressedBase64];
-                } else {
-                    newImages = [...workHeroImages, compressedBase64];
-                }
+                const newImages = [...workHeroImages, compressedBase64];
 
                 db.collection('workSiteSettings').doc('heroImages').set({
                     images: newImages,

@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserPath() {
+      return /databases/$(database)/documents/workUsers/$(request.auth.uid);
+    }
+
+    function hasWorkUser() {
+      return signedIn() && exists(currentUserPath());
+    }
+
+    function isMaster() {
+      return hasWorkUser() && get(currentUserPath()).data.isMaster == true;
+    }
+
+    function isApproved() {
+      return hasWorkUser() && get(currentUserPath()).data.isApproved == true;
+    }
+
+    function isMember() {
+      return isMaster() || isApproved();
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /workUsers/{userId} {
+      allow create: if isSelf(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.isApproved == false
+        && request.resource.data.isMaster == false;
+      allow get, list: if isMaster()
+        || isSelf(userId)
+        || (isMember() && resource.data.isApproved == true);
+      allow update: if isMaster()
+        || (isSelf(userId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['nickname', 'dept', 'photoURL']));
+      allow delete: if isMaster();
+    }
+
+    match /workSettings/{document=**} {
+      allow read: if isMember();
+      allow write: if isMaster();
+    }
+
+    match /workSiteSettings/{document=**} {
+      allow read: if isMember();
+      allow write: if isMaster();
+    }
+
+    match /workEvalSheetsMeta/{sheetId} {
+      allow read: if isMaster()
+        || (isMember() && request.auth.uid in resource.data.allowedUsers);
+      allow write: if isMaster();
+    }
+
+    match /workEvalSheetsData/{sheetId} {
+      allow read: if isMaster()
+        || (isMember()
+          && exists(/databases/$(database)/documents/workEvalSheetsMeta/$(sheetId))
+          && request.auth.uid in get(/databases/$(database)/documents/workEvalSheetsMeta/$(sheetId)).data.allowedUsers);
+      allow write: if isMaster();
+    }
+
+    match /workEvaluations/{document=**} {
+      allow read: if isMember();
+      allow write: if isMaster();
+    }
+
+    match /workProjectBackups/{document=**} {
+      allow read, write: if isMaster();
+    }
+
+    match /workProjectLogs/{document=**} {
+      allow create: if isMember();
+      allow get, list, update, delete: if isMaster();
+    }
+
+    match /workSchedules/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workProjects/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workLinks/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workNotices/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workMembers/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workMemberChats/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workIdeas/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /workInfo/{document=**} {
+      allow read, write: if isMember();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

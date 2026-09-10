@@ -533,6 +533,7 @@
             <nav class="work-tabs" id="work-tabs"
                 style="border: none; margin-bottom: 0; padding-bottom: 0; flex: 1; justify-content: center; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch;">
                 <button class="work-tab" data-tab="schedule"><i class="fa-regular fa-calendar-check"></i> 일정관리</button>
+                <button class="work-tab" data-tab="attendance"><i class="fa-solid fa-right-to-bracket"></i> 근태관리</button>
                 <button class="work-tab" data-tab="performance"><i class="fa-solid fa-trophy"></i> 개인성과</button>
                 <button class="work-tab" data-tab="projects"><i class="fa-solid fa-bars-progress"></i> 프로젝트</button>
                 <button class="work-tab" data-tab="evaluation"><i class="fa-solid fa-file-excel"></i> 평가시트</button>
@@ -567,6 +568,7 @@
     <!-- 모바일 퀵 메뉴 드롭다운 -->
     <div id="work-mobile-nav-dropdown" class="mobile-nav-dropdown glass-card hidden">
         <button class="mobile-dropdown-item work-tab" data-tab="schedule"><i class="fa-regular fa-calendar-check"></i> 일정관리</button>
+        <button class="mobile-dropdown-item work-tab" data-tab="attendance"><i class="fa-solid fa-right-to-bracket"></i> 근태관리</button>
         <button class="mobile-dropdown-item work-tab" data-tab="performance"><i class="fa-solid fa-trophy"></i> 개인성과</button>
         <button class="mobile-dropdown-item work-tab" data-tab="projects"><i class="fa-solid fa-bars-progress"></i> 프로젝트</button>
         <button class="mobile-dropdown-item work-tab" data-tab="evaluation"><i class="fa-solid fa-file-excel"></i> 평가시트</button>
@@ -626,6 +628,10 @@
                     <div class="form-group">
                         <label for="work-signup-nickname"><i class="fa-solid fa-signature"></i> 이름 (실명)</label>
                         <input type="text" id="work-signup-nickname" placeholder="예: 홍길동" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="work-signup-employee-id"><i class="fa-solid fa-id-card"></i> 텔레캅 멤버번호</label>
+                        <input type="text" id="work-signup-employee-id" placeholder="텔레캅에 등록된 멤버번호" maxlength="128" required aria-describedby="work-signup-employee-id-help">
                     </div>
                     <div class="form-group">
                         <label for="work-signup-dept"><i class="fa-solid fa-briefcase"></i> 소속 / 직책</label>
@@ -1041,6 +1047,84 @@
 
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 탭 내용: 출퇴근 -->
+                <div id="tab-attendance" class="tab-content">
+                    <div class="attendance-page glass-card">
+                        <div class="attendance-page-header">
+                            <div>
+                                <p class="attendance-eyebrow"><i class="fa-solid fa-building-user"></i> Team attendance</p>
+                                <h2><i class="fa-regular fa-calendar-days"></i> 근태 현황</h2>
+                            </div>
+                            <div class="attendance-actions">
+                                <div id="attendance-today-status" class="attendance-today-status" aria-live="polite">자동 수집된 출퇴근 기록을 표시합니다.</div>
+                            </div>
+                        </div>
+
+                        <div id="attendance-legend" class="attendance-legend" aria-label="구성원 색상표"></div>
+
+                        <div class="attendance-calendar-card">
+                            <div class="attendance-calendar-header">
+                                <button id="attendance-prev-month-btn" class="calendar-nav-btn" type="button" title="이전 달"><i class="fa-solid fa-angle-left"></i></button>
+                                <h3 id="attendance-month-year"></h3>
+                                <button id="attendance-next-month-btn" class="calendar-nav-btn" type="button" title="다음 달"><i class="fa-solid fa-angle-right"></i></button>
+                            </div>
+                            <div class="attendance-calendar-scroll">
+                                <div class="attendance-weekdays" aria-hidden="true">
+                                    <span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span>
+                                </div>
+                                <div id="attendance-calendar-grid" class="attendance-calendar-grid"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="attendance-entry-modal" class="calendar-modal-overlay" aria-hidden="true">
+                    <div class="calendar-modal-content glass-card attendance-entry-modal-content" role="dialog" aria-modal="true" aria-labelledby="attendance-entry-title">
+                        <button id="attendance-entry-close-btn" class="attendance-entry-close-btn" type="button" aria-label="근태 입력 창 닫기"><i class="fa-solid fa-xmark"></i></button>
+                        <p class="attendance-eyebrow"><i class="fa-solid fa-user-pen"></i> Master only</p>
+                        <h3 id="attendance-entry-title">근태 데이터 입력</h3>
+                        <p class="attendance-entry-description">근태 데이터 수동 입력 팝업</p>
+
+                        <form id="attendance-entry-form" class="attendance-entry-form">
+                            <label>
+                                <span>날짜</span>
+                                <input id="attendance-entry-date" type="date" required>
+                            </label>
+                            <label>
+                                <span>구성원</span>
+                                <select id="attendance-entry-member" required>
+                                    <option value="">구성원을 불러오는 중입니다.</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>근태 구분</span>
+                                <select id="attendance-entry-type" required>
+                                    <option value="checkIn">출근</option>
+                                    <option value="checkOut">퇴근</option>
+                                    <option value="halfDay">반차</option>
+                                    <option value="annual">연차</option>
+                                </select>
+                            </label>
+                            <label id="attendance-entry-time-field">
+                                <span>시간</span>
+                                <input id="attendance-entry-time" type="time" value="09:00">
+                            </label>
+                            <label id="attendance-entry-session-field" hidden>
+                                <span>반차 시간대</span>
+                                <select id="attendance-entry-session">
+                                    <option value="am">오전</option>
+                                    <option value="pm">오후</option>
+                                </select>
+                            </label>
+                            <div class="attendance-entry-actions">
+                                <button id="attendance-entry-cancel-btn" type="button" class="attendance-entry-secondary-btn">닫기</button>
+                                <button type="submit" class="attendance-entry-primary-btn">입력 확인</button>
+                            </div>
+                        </form>
+                        <p id="attendance-entry-preview" class="attendance-entry-preview" aria-live="polite"></p>
                     </div>
                 </div>
 

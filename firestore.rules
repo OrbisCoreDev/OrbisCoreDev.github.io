@@ -33,7 +33,14 @@ service cloud.firestore {
       allow create: if isSelf(userId)
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.isApproved == false
-        && request.resource.data.isMaster == false;
+        && request.resource.data.isMaster == false
+        && request.resource.data.employeeId is string
+        && request.resource.data.employeeId.size() > 0
+        && request.resource.data.employeeId.size() <= 128
+        && !request.resource.data.employeeId.matches('.*[\\s/].*')
+        && request.resource.data.employeeId != '.'
+        && request.resource.data.employeeId != '..'
+        && !request.resource.data.employeeId.matches('__.*__');
       allow get, list: if isMaster()
         || isSelf(userId)
         || (isMember() && resource.data.isApproved == true);
@@ -84,6 +91,21 @@ service cloud.firestore {
 
     match /workSchedules/{document=**} {
       allow read, write: if isMember();
+    }
+
+    match /workEmployees/{employeeId} {
+      allow get, list: if isMember();
+      allow write: if false;
+    }
+
+    match /workAttendance/{date} {
+      allow get, list: if isMember();
+      allow write: if false;
+    }
+
+    match /workHolidays/{date} {
+      allow get, list: if isMember();
+      allow write: if false;
     }
 
     match /workProjects/{document=**} {

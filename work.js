@@ -188,6 +188,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('work-signup-password').value;
             const nickname = document.getElementById('work-signup-nickname').value;
             const dept = document.getElementById('work-signup-dept').value;
+            const employeeId = document.getElementById('work-signup-employee-id').value.trim();
+            if (!employeeId || employeeId.length > 128 || /[\s/]/.test(employeeId)
+                || employeeId === '.' || employeeId === '..' || /^__.*__$/.test(employeeId)) {
+                showWorkAuthError('텔레캅 멤버번호를 공백이나 / 없이 정확히 입력해 주세요.');
+                return;
+            }
 
             isSigningUp = true;
             auth.createUserWithEmailAndPassword(email, password)
@@ -201,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         email: user.email,
                         nickname: nickname,
                         dept: dept,
+                        employeeId: employeeId,
                         photoURL: null,
                         isApproved: false,
                         isMaster: false,
@@ -325,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnAddIdea = document.getElementById('btn-add-idea');
         const btnAddInfo = document.getElementById('btn-add-info');
 
-        const allTabs = ['tab-schedule', 'tab-performance', 'tab-members', 'tab-ideas', 'tab-info', 'tab-notice', 'tab-bookmarks', 'tab-projects', 'tab-evaluation'];
+        const allTabs = ['tab-schedule', 'tab-attendance', 'tab-performance', 'tab-members', 'tab-ideas', 'tab-info', 'tab-notice', 'tab-bookmarks', 'tab-projects', 'tab-evaluation'];
 
         // 항상 먼저 모든 오버레이를 제거
         allTabs.forEach(tabId => hideTabLockOverlay(tabId));
@@ -469,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.renderWorkMembersChatList) window.renderWorkMembersChatList();
         if (typeof renderPsScheduler === 'function') renderPsScheduler();
         if (typeof renderNotices === 'function') renderNotices();
+        if (typeof renderAttendance === 'function') renderAttendance();
     }
 
     auth.onAuthStateChanged((user) => {
@@ -535,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     renderRestrictedContent();
+                    if (typeof startAttendanceListener === 'function') startAttendanceListener();
                     if (typeof renderPsScheduler === 'function') renderPsScheduler();
                 } else {
                     // 승인 대기중 -> 화면 가림
@@ -556,6 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // 로그아웃 됨
             currentUserDoc = null;
+            if (typeof stopAttendanceListener === 'function') stopAttendanceListener();
             window.currentUserDocGlobal = null;
             authStatusHeader.style.display = 'none';
             btnWorkLogin.style.display = 'inline-block';
@@ -799,6 +809,7 @@ if (btnRestoreData) {
 // 메뉴 권한 설정 로드
 const TABS_INFO = [
     { id: 'tab-schedule', name: '일정관리', icon: 'fa-calendar-check' },
+    { id: 'tab-attendance', name: '근태관리', icon: 'fa-right-to-bracket' },
     { id: 'tab-performance', name: '개인성과', icon: 'fa-trophy' },
     { id: 'tab-projects', name: '프로젝트', icon: 'fa-bars-progress' },
     { id: 'tab-evaluation', name: '평가시트', icon: 'fa-file-excel' },
@@ -938,6 +949,10 @@ function loadMasterApprovalList() {
                             ${roleBtn}
                         </div>
                     `;
+                const employeeInfo = document.createElement('p');
+                employeeInfo.style.cssText = 'margin: 4px 0; font-size: 0.8rem; color: #636e72;';
+                employeeInfo.textContent = `텔레캅 멤버번호: ${data.employeeId || '미등록'}`;
+                item.querySelector('p')?.parentElement.appendChild(employeeInfo);
                 masterApprovalList.appendChild(item);
             });
         })
@@ -1046,7 +1061,7 @@ tabs.forEach(tab => {
 
         const btnOpenModal = document.getElementById('btn-open-modal');
         if (btnOpenModal) {
-            if (currentTab === 'main' || currentTab === 'members' || currentTab === 'projects' || currentTab === 'performance' || currentTab === 'ideas' || currentTab === 'info' || currentTab === 'notice' || currentTab === 'schedule' || currentTab === 'bookmarks' || currentTab === 'evaluation') {
+            if (currentTab === 'main' || currentTab === 'members' || currentTab === 'projects' || currentTab === 'performance' || currentTab === 'ideas' || currentTab === 'info' || currentTab === 'notice' || currentTab === 'schedule' || currentTab === 'attendance' || currentTab === 'bookmarks' || currentTab === 'evaluation') {
                 btnOpenModal.style.display = 'none';
             } else {
                 btnOpenModal.style.display = 'flex';
@@ -2023,6 +2038,521 @@ if (formSchedule) {
         });
     });
 }
+
+// ====================================================
+// 출퇴근 (Attendance)
+// ====================================================
+const attendanceCalendarGrid = document.getElementById('attendance-calendar-grid');
+const attendanceMonthYear = document.getElementById('attendance-month-year');
+const attendanceLegend = document.getElementById('attendance-legend');
+const attendanceTodayStatus = document.getElementById('attendance-today-status');
+const attendancePrevMonthBtn = document.getElementById('attendance-prev-month-btn');
+const attendanceNextMonthBtn = document.getElementById('attendance-next-month-btn');
+const attendanceEntryModal = document.getElementById('attendance-entry-modal');
+const attendanceEntryForm = document.getElementById('attendance-entry-form');
+const attendanceEntryDate = document.getElementById('attendance-entry-date');
+const attendanceEntryMember = document.getElementById('attendance-entry-member');
+const attendanceEntryType = document.getElementById('attendance-entry-type');
+const attendanceEntryTime = document.getElementById('attendance-entry-time');
+const attendanceEntryTimeField = document.getElementById('attendance-entry-time-field');
+const attendanceEntrySession = document.getElementById('attendance-entry-session');
+const attendanceEntrySessionField = document.getElementById('attendance-entry-session-field');
+const attendanceEntryPreview = document.getElementById('attendance-entry-preview');
+const attendanceEntryCloseBtn = document.getElementById('attendance-entry-close-btn');
+const attendanceEntryCancelBtn = document.getElementById('attendance-entry-cancel-btn');
+
+const attendanceColors = ['#2d9cdb', '#9cdbd9', '#68c3a3', '#f2b45b', '#e88f9c', '#a58be0', '#71a6e8', '#e2c36b'];
+const attendanceRecordTypes = [
+    { id: 'checkIn', label: '출', className: 'check-in' },
+    { id: 'checkOut', label: '퇴', className: 'check-out' },
+    { id: 'halfDay', label: '반', className: 'half-day' },
+    { id: 'annual', label: '연', className: 'annual-leave' }
+];
+let attendanceCurrentDate = new Date();
+let attendanceByDate = {};
+let attendanceUnsubscribe = null;
+let attendanceColorsUnsubscribe = null;
+let attendanceHolidayUnsubscribe = null;
+let attendanceUserColors = {};
+let attendanceUserNames = {};
+let attendanceHolidaysByDate = {};
+
+function getAttendanceDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getAttendanceDayData(dateKey) {
+    return attendanceByDate[dateKey] || { entries: {} };
+}
+
+function getAttendanceColor(userId) {
+    const savedColor = attendanceUserColors[userId];
+    if (typeof savedColor === 'string' && /^#[0-9a-f]{6}$/i.test(savedColor)) return savedColor;
+
+    let hash = 0;
+    for (let i = 0; i < userId.length; i += 1) {
+        hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        hash |= 0;
+    }
+    return attendanceColors[Math.abs(hash) % attendanceColors.length];
+}
+
+function getAttendanceName(entry, userId = '') {
+    const savedName = attendanceUserNames[userId];
+    return typeof savedName === 'string' && savedName.trim() ? savedName.trim() : entry?.name || '구성원';
+}
+
+function getAttendanceNameLabel(entry, userId) {
+    const fullName = getAttendanceName(entry, userId).trim().replace(/\s+/g, '');
+    const givenName = fullName.length > 1 ? fullName.slice(1) : fullName;
+    return givenName.slice(0, 2) || '?';
+}
+
+function formatAttendanceTime(timestamp) {
+    if (!timestamp) return '기록 중';
+    if (typeof timestamp === 'string' && /^\d{1,2}:\d{2}$/.test(timestamp.trim())) {
+        return timestamp.trim().padStart(5, '0');
+    }
+    const date = typeof timestamp.toDate === 'function'
+        ? timestamp.toDate()
+        : typeof timestamp?.seconds === 'number'
+            ? new Date(timestamp.seconds * 1000)
+            : new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '기록 중';
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function getLeaveType(entry) {
+    const rawType = entry?.leave?.type || entry?.leaveType || entry?.status || '';
+    const type = String(rawType).trim().toLowerCase().replace(/[\s_-]/g, '');
+    if (entry?.halfDay || ['halfday', 'half', '반차'].includes(type)) return 'halfDay';
+    if (entry?.annualLeave || entry?.annual || ['annual', 'annualleave', '연차'].includes(type)) return 'annual';
+    return null;
+}
+
+function getLeaveSession(entry) {
+    return entry?.leave?.session || entry?.leaveSession || entry?.halfDaySession;
+}
+
+function getAttendanceTooltip(entry, type, userId) {
+    const name = getAttendanceName(entry, userId);
+    if (type === 'checkIn') return `${name} · 출근 ${formatAttendanceTime(entry.checkIn)}`;
+    if (type === 'checkOut') return `${name} · 퇴근 ${formatAttendanceTime(entry.checkOut)}`;
+
+    const leaveName = type === 'halfDay' ? '반차' : '연차';
+    const session = getLeaveSession(entry);
+    const sessionLabel = session === 'am' || session === '오전' ? ' (오전)' : session === 'pm' || session === '오후' ? ' (오후)' : '';
+    return `${name} · ${leaveName}${sessionLabel}`;
+}
+
+function getTodayAttendanceEntry() {
+    if (!currentUser) return null;
+    const employeeId = currentUserDoc?.employeeId;
+    // 연결된 계정은 텔레캅 멤버번호를 사용합니다. 기존 UID 기록은 미연결 계정에만 호환합니다.
+    const key = employeeId != null && String(employeeId).trim() ? String(employeeId).trim() : currentUser.uid;
+    return getAttendanceDayData(getAttendanceDateKey())?.entries?.[key] || null;
+}
+
+function canUseAttendance() {
+    return !!(currentUser && currentUserDoc && (currentUserDoc.isApproved || currentUserDoc.isMaster));
+}
+
+function canManageAttendance() {
+    return !!(currentUser && currentUserDoc?.isMaster);
+}
+
+function syncAttendanceEntryFields() {
+    if (!attendanceEntryType || !attendanceEntryTimeField || !attendanceEntrySessionField) return;
+    const type = attendanceEntryType.value;
+    const needsTime = type === 'checkIn' || type === 'checkOut';
+    attendanceEntryTimeField.hidden = !needsTime;
+    attendanceEntryTime.required = needsTime;
+    attendanceEntrySessionField.hidden = type !== 'halfDay';
+}
+
+function getAttendanceMembersForEntry() {
+    return new Map(getAttendanceUserEntries().map(([userId, entry]) => [userId, getAttendanceName(entry, userId)]));
+}
+
+function getAttendanceUserEntries() {
+    const members = new Map();
+    Object.keys(attendanceByDate).forEach(dateKey => {
+        Object.entries(getAttendanceDayData(dateKey).entries || {}).forEach(([userId, entry]) => {
+            if (!members.has(userId)) members.set(userId, entry);
+        });
+    });
+    return [...members.entries()];
+}
+
+async function populateAttendanceEntryMembers() {
+    if (!attendanceEntryMember) return;
+    const members = getAttendanceMembersForEntry();
+    attendanceEntryMember.innerHTML = '<option value="">구성원을 선택하세요.</option>';
+
+    [...members.entries()]
+        .sort(([, a], [, b]) => a.localeCompare(b, 'ko'))
+        .forEach(([userId, name]) => {
+            const option = document.createElement('option');
+            option.value = userId;
+            option.textContent = name;
+            attendanceEntryMember.appendChild(option);
+        });
+
+    try {
+        const snapshot = await db.collection('workEmployees').get();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (members.has(doc.id)) return;
+            const option = document.createElement('option');
+            option.value = doc.id;
+            option.textContent = getAttendanceName(data, doc.id);
+            attendanceEntryMember.appendChild(option);
+        });
+    } catch (error) {
+        console.error('근태 입력 구성원 목록 로드 오류:', error);
+    }
+}
+
+async function openAttendanceEntryModal(dateKey) {
+    if (!canManageAttendance() || !attendanceEntryModal) return;
+    attendanceEntryDate.value = dateKey;
+    attendanceEntryType.value = 'checkIn';
+    attendanceEntryTime.value = '09:00';
+    attendanceEntrySession.value = 'am';
+    attendanceEntryPreview.textContent = '';
+    syncAttendanceEntryFields();
+    attendanceEntryModal.classList.add('show');
+    attendanceEntryModal.setAttribute('aria-hidden', 'false');
+    await populateAttendanceEntryMembers();
+}
+
+function closeAttendanceEntryModal() {
+    if (!attendanceEntryModal) return;
+    attendanceEntryModal.classList.remove('show');
+    attendanceEntryModal.setAttribute('aria-hidden', 'true');
+}
+
+function saveAttendanceColor(userId, color) {
+    if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+
+    attendanceUserColors = { ...attendanceUserColors, [userId]: color };
+    renderAttendance();
+
+    if (!canManageAttendance()) return;
+
+    db.collection('workSettings').doc('attendance').set({
+        colors: { [userId]: color },
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(error => {
+        console.error('근태 구성원 색상 저장 오류:', error);
+        alert('색상 저장에 실패했습니다. 다시 시도해주세요.');
+    });
+}
+
+function saveAttendanceName(userId, name) {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    attendanceUserNames = { ...attendanceUserNames, [userId]: trimmedName };
+    renderAttendance();
+
+    if (!canManageAttendance()) return;
+
+    db.collection('workSettings').doc('attendance').set({
+        names: { [userId]: trimmedName },
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(error => {
+        console.error('근태 구성원 이름 저장 오류:', error);
+        alert('이름 저장에 실패했습니다. 다시 시도해주세요.');
+    });
+}
+
+function updateAttendanceStatus() {
+    if (!attendanceTodayStatus) return;
+
+    if (!canUseAttendance()) {
+        attendanceTodayStatus.textContent = '승인된 회사 계정으로 로그인하면 출퇴근 기록을 볼 수 있습니다.';
+        return;
+    }
+
+    const entry = getTodayAttendanceEntry();
+    const hasCheckedIn = !!entry?.checkIn;
+    const hasCheckedOut = !!entry?.checkOut;
+    const leaveType = getLeaveType(entry);
+
+    if (!entry) {
+        attendanceTodayStatus.textContent = '오늘 수집된 출근 기록이 없습니다.';
+        return;
+    }
+
+    attendanceTodayStatus.innerHTML = '';
+    const statusList = document.createElement('div');
+    statusList.className = 'attendance-status-list';
+    const addStatus = (className, text, tooltip) => {
+        const badge = document.createElement('span');
+        badge.className = `attendance-status-badge ${className}`;
+        badge.textContent = text;
+        badge.title = tooltip;
+        statusList.appendChild(badge);
+    };
+
+    if (leaveType === 'annual') {
+        addStatus('annual-leave', '연차', '오늘은 연차입니다.');
+    } else if (leaveType === 'halfDay') {
+        const session = getLeaveSession(entry);
+        const sessionLabel = session === 'am' || session === '오전' ? ' (오전)' : session === 'pm' || session === '오후' ? ' (오후)' : '';
+        addStatus('half-day', `반차${sessionLabel}`, `오늘은${sessionLabel || ' '}반차입니다.`);
+    } else {
+        if (hasCheckedIn) addStatus('check-in', '출근 확인', `출근 ${formatAttendanceTime(entry.checkIn)}`);
+        if (hasCheckedOut) addStatus('check-out', '퇴근 완료', `퇴근 ${formatAttendanceTime(entry.checkOut)}`);
+    }
+
+    if (statusList.childElementCount > 0) {
+        attendanceTodayStatus.appendChild(statusList);
+    } else {
+        attendanceTodayStatus.textContent = '오늘 수집된 출근 기록이 없습니다.';
+    }
+}
+
+function createAttendancePersonIcon(userId, entry, type) {
+    const personIcon = document.createElement('span');
+    const typeConfig = attendanceRecordTypes.find(record => record.id === type);
+    personIcon.className = `attendance-person-icon ${typeConfig?.className || 'check-in'}`;
+    personIcon.style.setProperty('--attendance-color', getAttendanceColor(userId));
+    personIcon.dataset.tooltip = getAttendanceTooltip(entry, type, userId);
+    personIcon.title = personIcon.dataset.tooltip;
+    personIcon.textContent = getAttendanceNameLabel(entry, userId);
+    return personIcon;
+}
+
+function createAttendanceRecordGroup(entries, type, label) {
+    const group = document.createElement('div');
+    group.className = 'attendance-record-group';
+
+    const labelEl = document.createElement('span');
+    const typeConfig = attendanceRecordTypes.find(record => record.id === type);
+    labelEl.className = `attendance-record-label ${typeConfig?.className || ''}`;
+    labelEl.textContent = label;
+    group.appendChild(labelEl);
+
+    const icons = document.createElement('div');
+    icons.className = 'attendance-record-icons';
+    Object.entries(entries)
+        .filter(([, entry]) => type === 'halfDay' || type === 'annual' ? getLeaveType(entry) === type : entry?.[type])
+        .sort(([aId, a], [bId, b]) => getAttendanceName(a, aId).localeCompare(getAttendanceName(b, bId), 'ko'))
+        .forEach(([userId, entry]) => icons.appendChild(createAttendancePersonIcon(userId, entry, type)));
+    group.appendChild(icons);
+    return group;
+}
+
+function renderAttendanceLegend() {
+    if (!attendanceLegend) return;
+    attendanceLegend.innerHTML = '';
+
+    const userEntries = getAttendanceUserEntries();
+
+    if (userEntries.length === 0) {
+        const message = document.createElement('span');
+        message.style.color = 'var(--text-muted)';
+        message.style.fontSize = '0.78rem';
+        message.textContent = '기록이 생기면 구성원별 색상이 여기에 표시됩니다.';
+        attendanceLegend.appendChild(message);
+        return;
+    }
+
+    userEntries
+        .sort(([aId, a], [bId, b]) => getAttendanceName(a, aId).localeCompare(getAttendanceName(b, bId), 'ko'))
+        .forEach(([userId, entry]) => {
+            const item = document.createElement('span');
+            const editable = canManageAttendance();
+            item.className = 'attendance-legend-item';
+            item.style.setProperty('--attendance-color', getAttendanceColor(userId));
+
+            const colorButton = document.createElement('button');
+            colorButton.type = 'button';
+            colorButton.className = 'attendance-legend-color-button';
+            colorButton.disabled = !editable;
+            if (editable) colorButton.classList.add('is-editable');
+            const dot = document.createElement('span');
+            dot.className = 'attendance-legend-dot';
+            dot.style.setProperty('--attendance-color', getAttendanceColor(userId));
+            colorButton.appendChild(dot);
+
+            const nameButton = document.createElement('button');
+            nameButton.type = 'button';
+            nameButton.className = 'attendance-legend-name-button';
+            nameButton.disabled = !editable;
+            if (editable) nameButton.classList.add('is-editable');
+            nameButton.textContent = getAttendanceName(entry, userId);
+            item.append(colorButton, nameButton);
+
+            if (editable) {
+                colorButton.title = '클릭하여 구성원 색상 변경';
+                colorButton.setAttribute('aria-label', `${getAttendanceName(entry, userId)} 색상 변경`);
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.className = 'attendance-color-input';
+                colorInput.value = getAttendanceColor(userId);
+                colorInput.tabIndex = -1;
+                colorInput.setAttribute('aria-label', `${getAttendanceName(entry, userId)} 색상`);
+                colorButton.addEventListener('click', () => colorInput.click());
+                colorInput.addEventListener('change', () => saveAttendanceColor(userId, colorInput.value));
+                item.appendChild(colorInput);
+
+                nameButton.title = '클릭하여 구성원 이름 변경';
+                nameButton.setAttribute('aria-label', `${getAttendanceName(entry, userId)} 이름 변경`);
+                nameButton.addEventListener('click', () => {
+                    const name = prompt('표시할 구성원 이름을 입력하세요.', getAttendanceName(entry, userId));
+                    if (name !== null) saveAttendanceName(userId, name);
+                });
+            } else {
+                colorButton.title = '구성원 색상은 관리자만 변경할 수 있습니다.';
+                nameButton.title = '구성원 이름은 관리자만 변경할 수 있습니다.';
+            }
+            attendanceLegend.appendChild(item);
+        });
+}
+
+function renderAttendance() {
+    if (!attendanceCalendarGrid) return;
+    attendanceCalendarGrid.innerHTML = '';
+
+    if (attendanceMonthYear) {
+        attendanceMonthYear.textContent = `${attendanceCurrentDate.getFullYear()}년 ${attendanceCurrentDate.getMonth() + 1}월`;
+    }
+
+    const year = attendanceCurrentDate.getFullYear();
+    const month = attendanceCurrentDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = getAttendanceDateKey();
+
+    for (let i = 0; i < firstDay; i += 1) {
+        const empty = document.createElement('div');
+        empty.className = 'attendance-day-empty';
+        attendanceCalendarGrid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(year, month, day);
+        const dateKey = getAttendanceDateKey(date);
+        const entries = getAttendanceDayData(dateKey)?.entries || {};
+        const holiday = attendanceHolidaysByDate[dateKey];
+        const dayCell = document.createElement('div');
+        dayCell.className = 'attendance-day';
+        if (dateKey === todayKey) dayCell.classList.add('is-today');
+        if (date.getDay() === 0) dayCell.classList.add('is-sunday');
+        if (date.getDay() === 6) dayCell.classList.add('is-saturday');
+        if (holiday) {
+            dayCell.classList.add('is-holiday');
+            dayCell.title = holiday.name;
+        }
+        if (canManageAttendance()) {
+            dayCell.classList.add('is-editable');
+            dayCell.tabIndex = 0;
+            dayCell.setAttribute('role', 'button');
+            dayCell.setAttribute('aria-label', `${dateKey} 근태 데이터 입력`);
+            dayCell.addEventListener('click', () => openAttendanceEntryModal(dateKey));
+            dayCell.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openAttendanceEntryModal(dateKey);
+                }
+            });
+        }
+
+        const dayNumber = document.createElement('span');
+        dayNumber.className = 'attendance-day-number';
+        dayNumber.textContent = day;
+        dayCell.appendChild(dayNumber);
+        if (holiday?.name) {
+            const holidayName = document.createElement('span');
+            holidayName.className = 'attendance-holiday-name';
+            holidayName.textContent = holiday.name;
+            dayCell.appendChild(holidayName);
+        }
+        attendanceRecordTypes.forEach(({ id, label }) => {
+            dayCell.appendChild(createAttendanceRecordGroup(entries, id, label));
+        });
+        attendanceCalendarGrid.appendChild(dayCell);
+    }
+
+    renderAttendanceLegend();
+    updateAttendanceStatus();
+}
+
+function startAttendanceListener() {
+    if (attendanceUnsubscribe || !canUseAttendance()) return;
+    attendanceUnsubscribe = db.collection('workAttendance').onSnapshot(snapshot => {
+        attendanceByDate = {};
+        snapshot.forEach(doc => { attendanceByDate[doc.id] = doc.data(); });
+        renderAttendance();
+    }, error => {
+        console.error('출퇴근 기록 로드 오류:', error);
+    });
+
+    attendanceColorsUnsubscribe = db.collection('workSettings').doc('attendance').onSnapshot(doc => {
+        attendanceUserColors = doc.exists ? (doc.data().colors || {}) : {};
+        attendanceUserNames = doc.exists ? (doc.data().names || {}) : {};
+        renderAttendance();
+    }, error => {
+        console.error('근태 구성원 색상 로드 오류:', error);
+    });
+
+    attendanceHolidayUnsubscribe = db.collection('workHolidays').onSnapshot(snapshot => {
+        attendanceHolidaysByDate = {};
+        snapshot.forEach(doc => {
+            const holiday = doc.data();
+            if (holiday.isHoliday !== false) attendanceHolidaysByDate[doc.id] = holiday;
+        });
+        renderAttendance();
+    }, error => {
+        console.error('공휴일 데이터 로드 오류:', error);
+    });
+}
+
+function stopAttendanceListener() {
+    if (attendanceUnsubscribe) attendanceUnsubscribe();
+    if (attendanceColorsUnsubscribe) attendanceColorsUnsubscribe();
+    if (attendanceHolidayUnsubscribe) attendanceHolidayUnsubscribe();
+    attendanceUnsubscribe = null;
+    attendanceColorsUnsubscribe = null;
+    attendanceHolidayUnsubscribe = null;
+    attendanceByDate = {};
+    attendanceUserColors = {};
+    attendanceUserNames = {};
+    attendanceHolidaysByDate = {};
+    renderAttendance();
+}
+
+attendancePrevMonthBtn?.addEventListener('click', () => {
+    attendanceCurrentDate = new Date(attendanceCurrentDate.getFullYear(), attendanceCurrentDate.getMonth() - 1, 1);
+    renderAttendance();
+});
+attendanceNextMonthBtn?.addEventListener('click', () => {
+    attendanceCurrentDate = new Date(attendanceCurrentDate.getFullYear(), attendanceCurrentDate.getMonth() + 1, 1);
+    renderAttendance();
+});
+attendanceEntryType?.addEventListener('change', syncAttendanceEntryFields);
+attendanceEntryCloseBtn?.addEventListener('click', closeAttendanceEntryModal);
+attendanceEntryCancelBtn?.addEventListener('click', closeAttendanceEntryModal);
+attendanceEntryModal?.addEventListener('click', event => {
+    if (event.target === attendanceEntryModal) closeAttendanceEntryModal();
+});
+attendanceEntryForm?.addEventListener('submit', event => {
+    event.preventDefault();
+    const memberName = attendanceEntryMember.options[attendanceEntryMember.selectedIndex]?.textContent || '구성원';
+    const labels = { checkIn: '출근', checkOut: '퇴근', halfDay: '반차', annual: '연차' };
+    const type = attendanceEntryType.value;
+    const detail = type === 'halfDay'
+        ? ` · ${attendanceEntrySession.value === 'am' ? '오전' : '오후'}`
+        : type === 'annual' ? '' : ` · ${attendanceEntryTime.value}`;
+    attendanceEntryPreview.textContent = `${attendanceEntryDate.value} · ${memberName} · ${labels[type]}${detail} 입력을 확인했습니다. 저장 연결 전입니다.`;
+});
+renderAttendance();
 
 // ====================================================
 // 개인성과 (Performance) - 신규 팀원 평가 매트릭스로 개편됨 (하단 initPerformanceLogic 참고)

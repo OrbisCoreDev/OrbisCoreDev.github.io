@@ -2271,9 +2271,6 @@ function updateAttendanceStatus() {
     }
 
     const entry = getTodayAttendanceEntry();
-    const hasCheckedIn = !!entry?.checkIn;
-    const hasCheckedOut = !!entry?.checkOut;
-
     if (!entry) {
         attendanceTodayStatus.textContent = '오늘 수집된 출근 기록이 없습니다.';
         return;
@@ -2290,8 +2287,20 @@ function updateAttendanceStatus() {
         statusList.appendChild(badge);
     };
 
-    if (hasCheckedIn) addStatus('check-in', '출근 확인', `출근 ${formatAttendanceTime(entry.checkIn)}`);
-    if (hasCheckedOut) addStatus('check-out', '퇴근 완료', `퇴근 ${formatAttendanceTime(entry.checkOut)}`);
+    const latestStatus = [
+        entry.checkIn && { className: 'check-in', text: '출근 확인', label: '출근', time: entry.checkIn },
+        entry.checkOut && { className: 'check-out', text: '퇴근 완료', label: '퇴근', time: entry.checkOut }
+    ]
+        .filter(Boolean)
+        .sort((left, right) => String(right.time).localeCompare(String(left.time)))[0];
+
+    if (latestStatus) {
+        addStatus(
+            latestStatus.className,
+            latestStatus.text,
+            `${latestStatus.label} ${formatAttendanceTime(latestStatus.time)}`
+        );
+    }
 
     if (statusList.childElementCount > 0) {
         attendanceTodayStatus.appendChild(statusList);

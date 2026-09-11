@@ -188,12 +188,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('work-signup-password').value;
             const nickname = document.getElementById('work-signup-nickname').value;
             const dept = document.getElementById('work-signup-dept').value;
-            const employeeId = document.getElementById('work-signup-employee-id').value.trim();
-            if (!employeeId || employeeId.length > 128 || /[\s/]/.test(employeeId)
-                || employeeId === '.' || employeeId === '..' || /^__.*__$/.test(employeeId)) {
-                showWorkAuthError('텔레캅 멤버번호를 공백이나 / 없이 정확히 입력해 주세요.');
+            const employeeIdInput = document.getElementById('work-signup-employee-id').value.trim();
+            if (!/^\d{1,16}$/.test(employeeIdInput)) {
+                showWorkAuthError('텔레캅 사원번호는 숫자만 입력해 주세요.');
                 return;
             }
+            // 텔레캅 DB의 user_pin(예: 1)을 athn_id(예: 0000000000000001) 형식으로 맞춥니다.
+            const employeeId = employeeIdInput.padStart(16, '0');
 
             isSigningUp = true;
             auth.createUserWithEmailAndPassword(email, password)
@@ -951,7 +952,7 @@ function loadMasterApprovalList() {
                     `;
                 const employeeInfo = document.createElement('p');
                 employeeInfo.style.cssText = 'margin: 4px 0; font-size: 0.8rem; color: #636e72;';
-                employeeInfo.textContent = `텔레캅 멤버번호: ${data.employeeId || '미등록'}`;
+                employeeInfo.textContent = `텔레캅 인증번호: ${data.employeeId || '미등록'}`;
                 item.querySelector('p')?.parentElement.appendChild(employeeInfo);
                 masterApprovalList.appendChild(item);
             });

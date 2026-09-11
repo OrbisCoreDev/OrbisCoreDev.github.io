@@ -2141,8 +2141,11 @@ function getAttendanceTooltip(entry, type, userId) {
 function getTodayAttendanceEntry() {
     if (!currentUser) return null;
     const employeeId = currentUserDoc?.employeeId;
-    // 연결된 계정은 텔레캅 멤버번호를 사용합니다. 기존 UID 기록은 미연결 계정에만 호환합니다.
-    const key = employeeId != null && String(employeeId).trim() ? String(employeeId).trim() : currentUser.uid;
+    const rawEmployeeId = employeeId != null ? String(employeeId).trim() : '';
+    // 기존에 user_pin만 저장된 계정도 16자리 athn_id로 보정해 같은 출퇴근 기록을 찾습니다.
+    const key = /^\d{1,16}$/.test(rawEmployeeId)
+        ? rawEmployeeId.padStart(16, '0')
+        : rawEmployeeId || currentUser.uid;
     return getAttendanceDayData(getAttendanceDateKey())?.entries?.[key] || null;
 }
 

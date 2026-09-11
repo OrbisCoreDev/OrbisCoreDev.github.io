@@ -2055,8 +2055,6 @@ const attendanceEntryMember = document.getElementById('attendance-entry-member')
 const attendanceEntryType = document.getElementById('attendance-entry-type');
 const attendanceEntryTime = document.getElementById('attendance-entry-time');
 const attendanceEntryTimeField = document.getElementById('attendance-entry-time-field');
-const attendanceEntrySession = document.getElementById('attendance-entry-session');
-const attendanceEntrySessionField = document.getElementById('attendance-entry-session-field');
 const attendanceEntryPreview = document.getElementById('attendance-entry-preview');
 const attendanceEntryCloseBtn = document.getElementById('attendance-entry-close-btn');
 const attendanceEntryCancelBtn = document.getElementById('attendance-entry-cancel-btn');
@@ -2064,9 +2062,7 @@ const attendanceEntryCancelBtn = document.getElementById('attendance-entry-cance
 const attendanceColors = ['#2d9cdb', '#9cdbd9', '#68c3a3', '#f2b45b', '#e88f9c', '#a58be0', '#71a6e8', '#e2c36b'];
 const attendanceRecordTypes = [
     { id: 'checkIn', label: '출', className: 'check-in' },
-    { id: 'checkOut', label: '퇴', className: 'check-out' },
-    { id: 'halfDay', label: '반', className: 'half-day' },
-    { id: 'annual', label: '연', className: 'annual-leave' }
+    { id: 'checkOut', label: '퇴', className: 'check-out' }
 ];
 let attendanceCurrentDate = new Date();
 let attendanceByDate = {};
@@ -2125,16 +2121,11 @@ function formatAttendanceTime(timestamp) {
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function getLeaveType(entry) {
-    const rawType = entry?.leave?.type || entry?.leaveType || entry?.status || '';
-    const type = String(rawType).trim().toLowerCase().replace(/[\s_-]/g, '');
+function getAttendanceLeaveType(entry) {
+    const type = String(entry?.leave?.type || entry?.leaveType || entry?.status || '').toLowerCase().replace(/[\s_-]/g, '');
     if (entry?.halfDay || ['halfday', 'half', '반차'].includes(type)) return 'halfDay';
     if (entry?.annualLeave || entry?.annual || ['annual', 'annualleave', '연차'].includes(type)) return 'annual';
     return null;
-}
-
-function getLeaveSession(entry) {
-    return entry?.leave?.session || entry?.leaveSession || entry?.halfDaySession;
 }
 
 function getAttendanceTooltip(entry, type, userId) {
@@ -2142,10 +2133,9 @@ function getAttendanceTooltip(entry, type, userId) {
     if (type === 'checkIn') return `${name} · 출근 ${formatAttendanceTime(entry.checkIn)}`;
     if (type === 'checkOut') return `${name} · 퇴근 ${formatAttendanceTime(entry.checkOut)}`;
 
-    const leaveName = type === 'halfDay' ? '반차' : '연차';
-    const session = getLeaveSession(entry);
-    const sessionLabel = session === 'am' || session === '오전' ? ' (오전)' : session === 'pm' || session === '오후' ? ' (오후)' : '';
-    return `${name} · ${leaveName}${sessionLabel}`;
+    const session = entry?.leave?.session || entry?.leaveSession || entry?.halfDaySession;
+    const period = ['am', '오전'].includes(session) ? '오전' : ['pm', '오후'].includes(session) ? '오후' : '';
+    return `${name} · ${type === 'halfDay' ? `반차${period ? ` (${period})` : ''}` : '연차'}`;
 }
 
 function getTodayAttendanceEntry() {
@@ -2165,12 +2155,11 @@ function canManageAttendance() {
 }
 
 function syncAttendanceEntryFields() {
-    if (!attendanceEntryType || !attendanceEntryTimeField || !attendanceEntrySessionField) return;
+    if (!attendanceEntryType || !attendanceEntryTimeField) return;
     const type = attendanceEntryType.value;
     const needsTime = type === 'checkIn' || type === 'checkOut';
     attendanceEntryTimeField.hidden = !needsTime;
     attendanceEntryTime.required = needsTime;
-    attendanceEntrySessionField.hidden = type !== 'halfDay';
 }
 
 function getAttendanceMembersForEntry() {
@@ -2221,7 +2210,6 @@ async function openAttendanceEntryModal(dateKey) {
     attendanceEntryDate.value = dateKey;
     attendanceEntryType.value = 'checkIn';
     attendanceEntryTime.value = '09:00';
-    attendanceEntrySession.value = 'am';
     attendanceEntryPreview.textContent = '';
     syncAttendanceEntryFields();
     attendanceEntryModal.classList.add('show');
@@ -2281,7 +2269,6 @@ function updateAttendanceStatus() {
     const entry = getTodayAttendanceEntry();
     const hasCheckedIn = !!entry?.checkIn;
     const hasCheckedOut = !!entry?.checkOut;
-    const leaveType = getLeaveType(entry);
 
     if (!entry) {
         attendanceTodayStatus.textContent = '오늘 수집된 출근 기록이 없습니다.';
@@ -2299,16 +2286,8 @@ function updateAttendanceStatus() {
         statusList.appendChild(badge);
     };
 
-    if (leaveType === 'annual') {
-        addStatus('annual-leave', '연차', '오늘은 연차입니다.');
-    } else if (leaveType === 'halfDay') {
-        const session = getLeaveSession(entry);
-        const sessionLabel = session === 'am' || session === '오전' ? ' (오전)' : session === 'pm' || session === '오후' ? ' (오후)' : '';
-        addStatus('half-day', `반차${sessionLabel}`, `오늘은${sessionLabel || ' '}반차입니다.`);
-    } else {
-        if (hasCheckedIn) addStatus('check-in', '출근 확인', `출근 ${formatAttendanceTime(entry.checkIn)}`);
-        if (hasCheckedOut) addStatus('check-out', '퇴근 완료', `퇴근 ${formatAttendanceTime(entry.checkOut)}`);
-    }
+    if (hasCheckedIn) addStatus('check-in', '출근 확인', `출근 ${formatAttendanceTime(entry.checkIn)}`);
+    if (hasCheckedOut) addStatus('check-out', '퇴근 완료', `퇴근 ${formatAttendanceTime(entry.checkOut)}`);
 
     if (statusList.childElementCount > 0) {
         attendanceTodayStatus.appendChild(statusList);
@@ -2341,7 +2320,7 @@ function createAttendanceRecordGroup(entries, type, label) {
     const icons = document.createElement('div');
     icons.className = 'attendance-record-icons';
     Object.entries(entries)
-        .filter(([, entry]) => type === 'halfDay' || type === 'annual' ? getLeaveType(entry) === type : entry?.[type])
+        .filter(([, entry]) => entry?.[type])
         .sort(([aId, a], [bId, b]) => getAttendanceName(a, aId).localeCompare(getAttendanceName(b, bId), 'ko'))
         .forEach(([userId, entry]) => icons.appendChild(createAttendancePersonIcon(userId, entry, type)));
     group.appendChild(icons);
@@ -2467,16 +2446,56 @@ function renderAttendance() {
         const dayNumber = document.createElement('span');
         dayNumber.className = 'attendance-day-number';
         dayNumber.textContent = day;
-        dayCell.appendChild(dayNumber);
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'attendance-day-header';
+        dayHeader.appendChild(dayNumber);
         if (holiday?.name) {
             const holidayName = document.createElement('span');
             holidayName.className = 'attendance-holiday-name';
             holidayName.textContent = holiday.name;
-            dayCell.appendChild(holidayName);
+            dayHeader.appendChild(holidayName);
         }
+        dayCell.appendChild(dayHeader);
+        const body = document.createElement('div');
+        body.className = 'attendance-day-body';
+        const records = document.createElement('div');
+        records.className = 'attendance-day-records';
         attendanceRecordTypes.forEach(({ id, label }) => {
-            dayCell.appendChild(createAttendanceRecordGroup(entries, id, label));
+            records.appendChild(createAttendanceRecordGroup(entries, id, label));
         });
+        body.appendChild(records);
+        const leaves = document.createElement('div');
+        leaves.className = 'attendance-day-leaves';
+        for (const [type, label, className] of [['halfDay', '반차', 'half-day'], ['annual', '연차', 'annual-leave']]) {
+            const matching = Object.entries(entries).filter(([, entry]) => getAttendanceLeaveType(entry) === type);
+            if (!matching.length) continue;
+            const row = document.createElement('div');
+            row.className = 'attendance-leave-row';
+            const heading = document.createElement('span');
+            heading.className = `attendance-record-label ${className}`;
+            heading.textContent = label;
+            row.appendChild(heading);
+            const icons = document.createElement('div');
+            icons.className = 'attendance-record-icons';
+            matching.sort(([aId, a], [bId, b]) => getAttendanceName(a, aId).localeCompare(getAttendanceName(b, bId), 'ko'));
+            matching.forEach(([id, entry]) => {
+                const item = document.createElement('span');
+                item.className = 'attendance-leave-person';
+                item.appendChild(createAttendancePersonIcon(id, entry, type));
+                const session = entry?.leave?.session || entry?.leaveSession || entry?.halfDaySession;
+                const period = ['am', '오전'].includes(session) ? '오전' : ['pm', '오후'].includes(session) ? '오후' : '';
+                if (type === 'halfDay' && period) {
+                    const text = document.createElement('span');
+                    text.textContent = period;
+                    item.appendChild(text);
+                }
+                icons.appendChild(item);
+            });
+            row.appendChild(icons);
+            leaves.appendChild(row);
+        }
+        body.appendChild(leaves);
+        dayCell.appendChild(body);
         attendanceCalendarGrid.appendChild(dayCell);
     }
 
@@ -2545,11 +2564,9 @@ attendanceEntryModal?.addEventListener('click', event => {
 attendanceEntryForm?.addEventListener('submit', event => {
     event.preventDefault();
     const memberName = attendanceEntryMember.options[attendanceEntryMember.selectedIndex]?.textContent || '구성원';
-    const labels = { checkIn: '출근', checkOut: '퇴근', halfDay: '반차', annual: '연차' };
+    const labels = { checkIn: '출근', checkOut: '퇴근' };
     const type = attendanceEntryType.value;
-    const detail = type === 'halfDay'
-        ? ` · ${attendanceEntrySession.value === 'am' ? '오전' : '오후'}`
-        : type === 'annual' ? '' : ` · ${attendanceEntryTime.value}`;
+    const detail = ` · ${attendanceEntryTime.value}`;
     attendanceEntryPreview.textContent = `${attendanceEntryDate.value} · ${memberName} · ${labels[type]}${detail} 입력을 확인했습니다. 저장 연결 전입니다.`;
 });
 renderAttendance();

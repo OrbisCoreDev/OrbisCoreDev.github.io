@@ -617,7 +617,7 @@ main {
 .attendance-weekdays .sun { color: #ff7b85; }
 .attendance-weekdays .sat { color: #74b9ff; }
 
-.attendance-calendar-grid { gap: 1px; background: var(--card-border); }
+.attendance-calendar-grid { gap: 1px; grid-auto-rows: 1fr; background: var(--card-border); }
 
 .attendance-day, .attendance-day-empty {
     min-height: 132px;
@@ -626,6 +626,9 @@ main {
 }
 
 .attendance-day.is-today { box-shadow: inset 0 0 0 2px var(--primary-color); }
+.attendance-day { display: flex; flex-direction: column; }
+.attendance-day-header { display: flex; align-items: baseline; gap: 0.4rem; min-width: 0; }
+.attendance-day-number { flex-shrink: 0; }
 .attendance-day.is-editable { cursor: pointer; }
 .attendance-day.is-editable:hover { background: color-mix(in srgb, var(--primary-color) 8%, var(--bg-color)); }
 .attendance-day-number { color: var(--text-color); font-size: 0.8rem; font-weight: 800; }
@@ -634,7 +637,7 @@ main {
 .attendance-day.is-holiday .attendance-day-number { color: #f3a0ac; }
 .attendance-holiday-name {
     display: block;
-    margin-top: 0.1rem;
+    margin-top: 0;
     overflow: hidden;
     color: #f3a0ac;
     font-size: 0.58rem;
@@ -643,14 +646,37 @@ main {
     white-space: nowrap;
 }
 
-.attendance-record-group {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.3rem;
-    margin-top: 0.18rem;
+.attendance-day-body {
+    display: grid;
+    flex: 1;
+    grid-template-rows: 7fr 3fr;
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0.4rem;
 }
 
-.attendance-day-number + .attendance-record-group { margin-top: 0.4rem; }
+.attendance-day-records {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    border-top: 1px solid var(--card-border);
+    padding-bottom: 0.4rem;
+}
+.attendance-day-records > .attendance-record-group + .attendance-record-group { border-left: 1px solid var(--card-border); padding-left: 0.4rem; }
+.attendance-day-leaves { border-top: 1px solid var(--card-border); padding-top: 0.3rem; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+/* 기록이 없어도 반차·연차 아이콘 두 줄의 높이를 기본으로 확보합니다. */
+.attendance-day-leaves { min-height: calc(1.45rem * 2 + 0.2rem + 0.3rem + 1px); }
+.attendance-leave-row { display: flex; align-items: center; gap: 0.3rem; }
+.attendance-leave-row > .attendance-record-label { white-space: nowrap; }
+.attendance-leave-person { display: inline-flex; align-items: center; gap: 0.15rem; font-size: 0.55rem; color: var(--text-muted); }
+
+.attendance-record-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.3rem;
+    margin-top: 0;
+}
 
 .attendance-record-label {
     flex: 0 0 auto;
@@ -665,10 +691,11 @@ main {
 .attendance-record-label.half-day { color: #9cdbd9; }
 .attendance-record-label.annual-leave { color: #c5b1f4; }
 
-.attendance-record-icons { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.attendance-record-icons { display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 0.25rem; width: 100%; }
 
 .attendance-person-icon {
     position: relative;
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -810,8 +837,14 @@ main {
     .attendance-weekdays span { padding: 0.42rem 0.08rem; font-size: 0.65rem; }
     .attendance-day, .attendance-day-empty { min-height: 94px; padding: 0.22rem; }
     .attendance-day-number { font-size: 0.62rem; }
-    .attendance-record-group { gap: 0.08rem; margin-top: 0.1rem; }
-    .attendance-day-number + .attendance-record-group { margin-top: 0.2rem; }
+    .attendance-day-body { margin-top: 0.2rem; }
+    .attendance-day-records { gap: 0.15rem; padding-bottom: 0.2rem; }
+    .attendance-day-records > .attendance-record-group + .attendance-record-group { padding-left: 0.15rem; }
+    .attendance-day-leaves { min-height: calc(0.78rem * 2 + 0.1rem + 0.15rem + 1px); padding-top: 0.15rem; gap: 0.1rem; }
+    .attendance-leave-row { gap: 0.15rem; }
+    .attendance-leave-row > .attendance-record-label { width: auto; }
+    .attendance-leave-person { font-size: 0.45rem; }
+    .attendance-record-group { gap: 0.08rem; margin-top: 0; }
     .attendance-record-label { width: 0.48rem; padding-top: 0.04rem; font-size: 0.5rem; }
     .attendance-record-icons { gap: 0.08rem; }
     .attendance-person-icon { width: 0.78rem; height: 0.78rem; padding: 0; font-size: 0.29rem; }
